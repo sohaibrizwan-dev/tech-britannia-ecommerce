@@ -175,7 +175,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ cart, clearCart }) =
 
         const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
           payment_method: {
-            card: cardElement,
+            card: cardElement as any,
             billing_details: {
               name: data.fullName,
               email: data.email,

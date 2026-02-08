@@ -1,4 +1,4 @@
-export { default as User, UserDocument } from './User';
-export { default as Product, ProductDocument } from './Product';
-export { default as Cart, CartDocument } from './Cart';
-export { default as Order, OrderDocument } from './Order';
+export { default as User, type UserDocument } from './User';
+export { default as Product, type ProductDocument } from './Product';
+export { default as Cart, type CartDocument } from './Cart';
+export { default as Order, type OrderDocument } from './Order';
