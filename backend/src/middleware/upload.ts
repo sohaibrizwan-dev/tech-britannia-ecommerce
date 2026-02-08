@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { Request } from 'express';
 
 // Ensure uploads directory exists
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -10,10 +11,10 @@ if (!fs.existsSync(uploadDir)) {
 
 // Set storage engine
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
+  destination: function (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) {
     cb(null, 'uploads/');
   },
-  filename: function (req, file, cb) {
+  filename: function (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) {
     // Create unique filename
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
@@ -40,7 +41,7 @@ function checkFileType(file: Express.Multer.File, cb: multer.FileFilterCallback)
 export const upload = multer({
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: function (_req, file, cb) {
+  fileFilter: function (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
     checkFileType(file, cb);
   },
 });
