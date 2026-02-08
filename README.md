@@ -39,7 +39,7 @@
 
 - 🎨 Modern, responsive UI with dark/light mode
 - ⚡ Blazing-fast performance with Vite
-- 🔍 Advanced product search & filtering
+- 🔍 Advanced product search & filtering (brand, rating, price)
 - 💳 Secure Stripe payment integration
 - 🛍️ Persistent cart & wishlist
 - ⭐ Product reviews & ratings
@@ -53,7 +53,7 @@
 
 ### 🔐 **Authentication & Security**
 
-- 🔑 JWT-based authentication
+- 🔑 JWT-based authentication with refresh tokens
 - 🛡️ Protected routes & role-based access
 - 🔒 Secure password hashing (bcrypt)
 - 🚦 Rate limiting & Helmet security
@@ -194,31 +194,57 @@ npm install
 
 Create `.env` files in both root and `backend` directories:
 
-**Root `.env`:**
+**Root `.env` (Frontend):**
 
 ```env
+# API Configuration
+# For local development:
 VITE_API_URL=http://localhost:5000/api
+
+# For production, use your backend URL:
+# VITE_API_URL=https://your-backend.onrender.com/api
+
+# App Configuration
+VITE_APP_NAME=Tech Britannia
+VITE_APP_VERSION=1.0.0
+
+# Stripe Configuration (use test key for development)
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
 ```
 
 **Backend `.env`:**
 
 ```env
-NODE_ENV=development
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/techbritannia
-JWT_SECRET=your-super-secret-jwt-key
-JWT_EXPIRES_IN=7d
+NODE_ENV=development
+
+# MongoDB (use local for dev, Atlas for production)
+MONGODB_URI=mongodb://localhost:27017/tech_britannia
+
+# JWT Authentication
+JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
+JWT_REFRESH_SECRET=your_refresh_secret_key_change_this_in_production
+JWT_EXPIRE=7d
+JWT_REFRESH_EXPIRE=30d
+
+# CORS (comma-separated for multiple origins)
+CORS_ORIGIN=http://localhost:5173,https://your-frontend.vercel.app
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Admin Credentials (for seeding)
+ADMIN_EMAIL=admin@techbritannia.co.uk
+ADMIN_PASSWORD=your_secure_admin_password
 
 # Stripe (Required for payments)
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
 
-# Email (Optional - for notifications)
-RESEND_API_KEY=your_resend_api_key
-
-# Frontend URL (for CORS)
-FRONTEND_URL=http://localhost:5173
+# Resend Email (Optional - for notifications)
+RESEND_API_KEY=re_your_resend_api_key_here
+STORE_OWNER_EMAIL=your-email@gmail.com
 ```
 
 ### Run Development Servers
@@ -263,7 +289,7 @@ techbritannia/
 │   │   ├── 📂 config/            # Database & app configuration
 │   │   │   ├── database.ts       # MongoDB connection
 │   │   │   └── index.ts          # Config exports
-│   │   ├── 📂 controllers/       # Route controllers
+│   │   ├── 📂 controllers/       # Route controllers (9 files)
 │   │   │   ├── adminController.ts
 │   │   │   ├── authController.ts
 │   │   │   ├── cartController.ts
@@ -274,13 +300,13 @@ techbritannia/
 │   │   │   ├── stripeController.ts
 │   │   │   └── userController.ts
 │   │   ├── 📂 middleware/        # Auth, validation, error handling
-│   │   ├── 📂 models/            # Mongoose schemas
+│   │   ├── 📂 models/            # Mongoose schemas (5 models)
 │   │   │   ├── Cart.ts
 │   │   │   ├── Order.ts
 │   │   │   ├── Product.ts
 │   │   │   ├── Review.ts
 │   │   │   └── User.ts
-│   │   ├── 📂 routes/            # API routes
+│   │   ├── 📂 routes/            # API routes (11 files)
 │   │   │   ├── adminRoutes.ts
 │   │   │   ├── authRoutes.ts
 │   │   │   ├── cartRoutes.ts
@@ -294,11 +320,14 @@ techbritannia/
 │   │   │   └── userRoutes.ts
 │   │   ├── 📂 services/          # Business logic (Resend email)
 │   │   ├── 📂 scripts/           # Seed scripts
-│   │   └── 📂 utils/             # Helper functions
+│   │   ├── 📂 types/             # TypeScript type definitions
+│   │   ├── 📂 utils/             # Helper functions
+│   │   └── 📄 index.ts           # Application entry point
 │   ├── 📂 uploads/               # Uploaded images
+│   ├── 📄 .env.example           # Environment template
 │   └── 📄 package.json
 │
-├── 📂 components/                # React UI Components
+├── 📂 components/                # React UI Components (12 files)
 │   ├── CardInput.tsx             # Custom card input
 │   ├── CartDrawer.tsx            # Slide-out shopping cart
 │   ├── FilterSidebar.tsx         # Product filtering
@@ -312,7 +341,7 @@ techbritannia/
 │   ├── SkeletonLoader.tsx        # Loading states
 │   └── StripeProvider.tsx        # Stripe Elements wrapper
 │
-├── 📂 pages/                     # Page Components
+├── 📂 pages/                     # Page Components (11 files)
 │   ├── AboutPage.tsx             # About us page
 │   ├── AccountPage.tsx           # User account/profile
 │   ├── AdminDashboardPage.tsx    # Admin control panel
@@ -336,7 +365,7 @@ techbritannia/
 │   ├── useProducts.ts            # Product queries
 │   └── useReviews.ts             # Review operations
 │
-├── 📂 services/                  # API & Business Logic
+├── 📂 services/                  # API & Business Logic (9 files)
 │   ├── api.ts                    # Axios API client
 │   ├── auth.ts                   # Auth utilities
 │   ├── cartService.ts            # Cart operations
@@ -344,14 +373,18 @@ techbritannia/
 │   ├── orderService.ts           # Order management
 │   ├── paymentService.ts         # Stripe payments
 │   ├── productService.ts         # Product queries
-│   └── storefrontApi.ts          # Storefront API
+│   ├── storefrontApi.ts          # Storefront API
+│   └── index.ts                  # Service exports
 │
 ├── 📂 utils/                     # Frontend utilities
-├── 📄 App.tsx                    # Main App component
+├── 📄 App.tsx                    # Main App component (routing)
 ├── 📄 index.tsx                  # Entry point
+├── 📄 index.css                  # Global styles
 ├── 📄 types.ts                   # TypeScript definitions
 ├── 📄 constants.ts               # App constants
-└── 📄 vite.config.ts             # Vite configuration
+├── 📄 .env.example               # Frontend env template
+├── 📄 vite.config.ts             # Vite configuration
+└── 📄 package.json
 ```
 
 ---
@@ -374,15 +407,25 @@ techbritannia/
 <details>
 <summary><strong>📦 Products</strong></summary>
 
-| Method   | Endpoint                     | Description            |
-| -------- | ---------------------------- | ---------------------- |
-| `GET`    | `/api/products`              | Get all products       |
-| `GET`    | `/api/products/:id`          | Get single product     |
-| `GET`    | `/api/products/categories`   | Get all categories     |
-| `GET`    | `/api/products/best-sellers` | Get best sellers       |
-| `POST`   | `/api/products`              | Create product (Admin) |
-| `PUT`    | `/api/products/:id`          | Update product (Admin) |
-| `DELETE` | `/api/products/:id`          | Delete product (Admin) |
+| Method   | Endpoint                     | Description                 |
+| -------- | ---------------------------- | --------------------------- |
+| `GET`    | `/api/products`              | Get products (with filters) |
+| `GET`    | `/api/products/:id`          | Get single product          |
+| `GET`    | `/api/products/categories`   | Get all categories          |
+| `GET`    | `/api/products/best-sellers` | Get best sellers            |
+| `POST`   | `/api/products`              | Create product (Admin)      |
+| `PUT`    | `/api/products/:id`          | Update product (Admin)      |
+| `DELETE` | `/api/products/:id`          | Delete product (Admin)      |
+
+**Query Parameters:**
+
+- `category` - Filter by category
+- `brand` - Filter by brand
+- `minPrice` / `maxPrice` - Price range
+- `minRating` - Minimum rating filter
+- `search` - Text search
+- `sort` - Sort order (price_asc, price_desc, rating, newest)
+- `page` / `limit` - Pagination
 
 </details>
 
@@ -480,14 +523,35 @@ techbritannia/
 
 ---
 
+## 🌐 Deployment
+
+### Frontend (Vercel)
+
+1. Connect your GitHub repository to Vercel
+2. Set environment variables in Vercel dashboard:
+   - `VITE_API_URL` - Your backend URL
+   - `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe public key
+
+### Backend (Render)
+
+1. Create a new Web Service on Render
+2. Connect your GitHub repository
+3. Set environment variables in Render dashboard (see Backend `.env` above)
+4. Set build command: `npm install && npm run build`
+5. Set start command: `npm start`
+
+> **Note:** Render's free tier has cold starts (~30 seconds). The frontend includes automatic retry logic to handle this gracefully.
+
+---
+
 ## 🔒 Security Features
 
 - **Helmet.js** - Secure HTTP headers
-- **Rate Limiting** - Prevent brute force attacks
-- **CORS** - Cross-origin resource sharing protection
+- **Rate Limiting** - Configurable request limits per window
+- **CORS** - Configurable allowed origins
 - **Input Validation** - Zod schema validation
 - **Password Hashing** - bcrypt with salt rounds
-- **JWT Authentication** - Secure token-based auth
+- **JWT Authentication** - Access & refresh tokens
 - **HTTP-Only Cookies** - XSS protection
 
 ---
