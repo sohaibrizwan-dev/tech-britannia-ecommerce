@@ -33,12 +33,33 @@ connectDB();
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-app.use(cors({
-  origin: config.corsOrigin,
+
+// Dynamic CORS configuration for multiple origins
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
+    if (config.corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Log blocked origin for debugging (only in development)
+    if (config.nodeEnv === 'development') {
+      console.log(`CORS blocked origin: ${origin}. Allowed: ${config.corsOrigins.join(', ')}`);
+    }
+    
+    return callback(new Error(`CORS not allowed for origin: ${origin}`), false);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+};
+app.use(cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({

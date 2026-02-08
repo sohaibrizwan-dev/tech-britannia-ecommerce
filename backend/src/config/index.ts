@@ -1,8 +1,15 @@
 import dotenv from "dotenv";
-import path from "path";
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, "../../.env") });
+/**
+ * Load environment variables
+ * - Locally: loads from .env
+ * - Production (Render): uses dashboard env vars
+ */
+dotenv.config();
+
+/* =========================
+   Types
+========================= */
 
 interface Config {
   port: number;
@@ -12,7 +19,7 @@ interface Config {
   jwtExpire: string;
   jwtRefreshExpire: string;
   nodeEnv: string;
-  corsOrigin: string;
+  corsOrigins: string[];
   rateLimitWindowMs: number;
   rateLimitMaxRequests: number;
   adminEmail: string;
@@ -21,26 +28,79 @@ interface Config {
   stripeWebhookSecret: string;
 }
 
-const config: Config = {
-  port: parseInt(process.env.PORT || "5000", 10),
-  mongoUri:
-    process.env.MONGODB_URI || "mongodb://localhost:27017/tech_britannia",
-  jwtSecret: process.env.JWT_SECRET || "default_secret_change_this",
-  jwtRefreshSecret:
-    process.env.JWT_REFRESH_SECRET || "default_refresh_secret_change_this",
-  jwtExpire: process.env.JWT_EXPIRE || "7d",
-  jwtRefreshExpire: process.env.JWT_REFRESH_EXPIRE || "30d",
-  nodeEnv: process.env.NODE_ENV || "development",
-  corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
-  rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10), // 1 minute window (was 15 min)
-  rateLimitMaxRequests: parseInt(
-    process.env.RATE_LIMIT_MAX_REQUESTS || "1000",
-    10,
-  ), // 1000 requests per window
-  adminEmail: process.env.ADMIN_EMAIL || "admin@techbritannia.co.uk",
-  adminPassword: process.env.ADMIN_PASSWORD || "Admin123!",
-  stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
-  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
+/* =========================
+   Helpers
+========================= */
+
+const parseCorsOrigins = (origins?: string): string[] => {
+  const defaults = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ];
+
+  if (!origins) return defaults;
+
+  const parsed = origins
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  return parsed.length > 0 ? parsed : defaults;
 };
+
+/* =========================
+   Config Object
+========================= */
+
+const config: Config = {
+  port: Number(process.env.PORT) || 5000,
+
+  mongoUri:
+    process.env.MONGODB_URI ??
+    "mongodb://localhost:27017/tech_britannia",
+
+  jwtSecret: process.env.JWT_SECRET ?? "",
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET ?? "",
+
+  jwtExpire: process.env.JWT_EXPIRE ?? "7d",
+  jwtRefreshExpire: process.env.JWT_REFRESH_EXPIRE ?? "30d",
+
+  nodeEnv: process.env.NODE_ENV ?? "development",
+
+  corsOrigins: parseCorsOrigins(process.env.CORS_ORIGIN),
+
+  rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60_000,
+  rateLimitMaxRequests:
+    Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
+
+  adminEmail:
+    process.env.ADMIN_EMAIL ?? "admin@techbritannia.co.uk",
+  adminPassword: process.env.ADMIN_PASSWORD ?? "",
+
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
+};
+
+/* =========================
+   Production Safety Checks
+========================= */
+
+if (config.nodeEnv === "production") {
+  const requiredVars: Array<keyof NodeJS.ProcessEnv> = [
+    "MONGODB_URI",
+    "JWT_SECRET",
+    "JWT_REFRESH_SECRET",
+    "CORS_ORIGIN",
+    "STRIPE_SECRET_KEY",
+  ];
+
+  for (const key of requiredVars) {
+    if (!process.env[key]) {
+      throw new Error(
+        `❌ Missing required environment variable: ${key}`,
+      );
+    }
+  }
+}
 
 export default config;
