@@ -34,24 +34,38 @@ const parseCorsOrigins = (origins: string | undefined): string[] => {
   return parsed.length > 0 ? parsed : defaultOrigins;
 };
 
+const getEnv = (key: string, defaultValue?: string): string => {
+  const value = process.env[key] || defaultValue;
+  if (!value) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
+    // In development, warn but allow empty if not critical for startup
+    console.warn(`Missing environment variable: ${key}`);
+    return '';
+  }
+  return value;
+};
+
 const config: Config = {
   port: parseInt(process.env.PORT || "5000", 10),
-  mongoUri:
-    process.env.MONGODB_URI || "mongodb://localhost:27017/tech_britannia",
-  jwtSecret: process.env.JWT_SECRET || "default_secret_change_this",
-  jwtRefreshSecret:
-    process.env.JWT_REFRESH_SECRET || "default_refresh_secret_change_this",
+  mongoUri: process.env.MONGODB_URI || "mongodb://localhost:27017/tech_britannia",
+  
+  // Secrets - fail if missing in production
+  jwtSecret: getEnv('JWT_SECRET', 'dev_jwt_secret_do_not_use_in_prod'),
+  jwtRefreshSecret: getEnv('JWT_REFRESH_SECRET', 'dev_refresh_secret_do_not_use_in_prod'),
+  
   jwtExpire: process.env.JWT_EXPIRE || "7d",
   jwtRefreshExpire: process.env.JWT_REFRESH_EXPIRE || "30d",
   nodeEnv: process.env.NODE_ENV || "development",
   corsOrigins: parseCorsOrigins(process.env.CORS_ORIGIN),
-  rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10), // 1 minute window (was 15 min)
-  rateLimitMaxRequests: parseInt(
-    process.env.RATE_LIMIT_MAX_REQUESTS || "1000",
-    10,
-  ), // 1000 requests per window
+  rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
+  rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "1000", 10),
+  
   adminEmail: process.env.ADMIN_EMAIL || "admin@techbritannia.co.uk",
+  // In production, admin password must be set via env or seed script shouldn't run
   adminPassword: process.env.ADMIN_PASSWORD || "Admin123!",
+  
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
 };

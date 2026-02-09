@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { body, validationResult } from 'express-validator';
+import { z } from 'zod';
 import Order from '../models/Order';
 import Cart from '../models/Cart';
 import Product from '../models/Product';
@@ -8,41 +8,47 @@ import { IProduct } from '../types';
 import { sendOrderEmails } from '../services/emailService';
 import logger from '../utils/logger';
 
-// Validation rules
-export const createOrderValidation = [
-  body('shippingAddress.fullName').trim().notEmpty().withMessage('Full name is required'),
-  body('shippingAddress.email').isEmail().withMessage('Valid email is required'),
-  body('shippingAddress.address').trim().notEmpty().withMessage('Address is required'),
-  body('shippingAddress.city').trim().notEmpty().withMessage('City is required'),
-  body('shippingAddress.postcode').trim().notEmpty().withMessage('Postcode is required'),
-];
+// Zod Schemas for strict validation
+const OrderItemSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number().int().positive(),
+});
+
+const AddressSchema = z.object({
+  fullName: z.string().min(1).trim(),
+  email: z.string().email().trim(),
+  address: z.string().min(1).trim(),
+  address2: z.string().optional(),
+  city: z.string().min(1).trim(),
+  postcode: z.string().min(1).trim(),
+  country: z.string().optional(),
+});
+
+const CreateOrderSchema = z.object({
+  items: z.array(OrderItemSchema).optional(),
+  shippingAddress: AddressSchema,
+});
 
 // Create order from cart (or directly from provided items)
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
+    // 1. Strict Zod Validation
+    const validation = CreateOrderSchema.safeParse(req.body);
+
+    if (!validation.success) {
       res.status(400).json({
         success: false,
         message: 'Validation failed',
-        errors: errors.array(),
+        errors: validation.error.errors,
       });
       return;
     }
 
-    const bodyItems = Array.isArray(req.body.items) ? req.body.items : null;
+    const { items: bodyItems, shippingAddress } = validation.data;
 
     if (bodyItems && bodyItems.length > 0) {
       // ===== Path A: Build order directly from items sent by frontend =====
-      const productIds = bodyItems.map((i: any) => i.productId).filter(Boolean);
-
-      if (productIds.length === 0) {
-        res.status(400).json({
-          success: false,
-          message: 'No valid items provided',
-        });
-        return;
-      }
+      const productIds = bodyItems.map((i) => i.productId);
 
       const products = await Product.find({ _id: { $in: productIds } });
       const productMap = new Map<string, IProduct & { _id: any }>();
@@ -60,9 +66,8 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
       for (const item of bodyItems) {
         const { productId, quantity } = item;
-        if (!productId || !quantity || quantity <= 0) continue;
-
-        const product = productMap.get(String(productId));
+        const product = productMap.get(productId);
+        
         if (!product) {
           res.status(400).json({
             success: false,
@@ -110,7 +115,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         subtotal,
         shipping,
         vat,
-        shippingAddress: req.body.shippingAddress,
+        shippingAddress: shippingAddress, // Use validated address
         status: 'Processing',
         paymentStatus: 'pending',
       });
@@ -127,8 +132,8 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       // Send email notifications (non-blocking)
       sendOrderEmails({
         orderId: order._id.toString().slice(-8).toUpperCase(),
-        customerName: req.body.shippingAddress.fullName,
-        customerEmail: req.body.shippingAddress.email,
+        customerName: shippingAddress.fullName,
+        customerEmail: shippingAddress.email,
         items: orderItems.map(item => ({
           name: item.name,
           quantity: item.quantity,
@@ -139,11 +144,11 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         shipping,
         total,
         shippingAddress: {
-          line1: req.body.shippingAddress.address,
-          line2: req.body.shippingAddress.address2,
-          city: req.body.shippingAddress.city,
-          postcode: req.body.shippingAddress.postcode,
-          country: req.body.shippingAddress.country || 'United Kingdom',
+          line1: shippingAddress.address,
+          line2: shippingAddress.address2,
+          city: shippingAddress.city,
+          postcode: shippingAddress.postcode,
+          country: shippingAddress.country || 'United Kingdom',
         },
         paymentMethod: 'Card ending in ****',
         orderDate: new Date(),
@@ -214,7 +219,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         subtotal,
         shipping,
         vat,
-        shippingAddress: req.body.shippingAddress,
+        shippingAddress: shippingAddress, // Use validated address
         status: 'Processing',
         paymentStatus: 'pending',
       });
@@ -232,14 +237,11 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
       await order.populate('items.product');
 
-      // Get shipping address for email
-      const shippingAddr = req.body.shippingAddress;
-      
       // Send email notifications (non-blocking)
       sendOrderEmails({
         orderId: order._id.toString().slice(-8).toUpperCase(),
-        customerName: shippingAddr.fullName,
-        customerEmail: shippingAddr.email,
+        customerName: shippingAddress.fullName,
+        customerEmail: shippingAddress.email,
         items: orderItems.map(item => ({
           name: item.name,
           quantity: item.quantity,
@@ -250,11 +252,11 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         shipping,
         total,
         shippingAddress: {
-          line1: shippingAddr.address,
-          line2: shippingAddr.address2,
-          city: shippingAddr.city,
-          postcode: shippingAddr.postcode,
-          country: shippingAddr.country || 'United Kingdom',
+          line1: shippingAddress.address,
+          line2: shippingAddress.address2,
+          city: shippingAddress.city,
+          postcode: shippingAddress.postcode,
+          country: shippingAddress.country || 'United Kingdom',
         },
         paymentMethod: 'Card ending in ****',
         orderDate: new Date(),
@@ -270,7 +272,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       });
     }
   } catch (error) {
-    console.error('Create order error:', error);
+    logger.error('Create order error', { error });
     res.status(500).json({
       success: false,
       message: 'Error creating order',
@@ -390,6 +392,15 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
     const { id } = req.params;
     const { status } = req.body;
 
+    // explicit role check for defense in depth
+    if (req.user?.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Access denied. Admins only.',
+      });
+      return;
+    }
+
     const validStatuses = ['Processing', 'Shipped', 'Delivered', 'Cancelled'];
     if (!validStatuses.includes(status)) {
       res.status(400).json({
@@ -420,7 +431,7 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
       data: order,
     });
   } catch (error) {
-    console.error('Update order status error:', error);
+    logger.error('Update order status error', { error, orderId: req.params.id });
     res.status(500).json({
       success: false,
       message: 'Error updating order status',
@@ -428,11 +439,20 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
   }
 };
 
-// Update payment status (admin/webhook)
+// Update payment status (admin only - users must use Stripe Webhook)
 export const updatePaymentStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { paymentStatus, stripePaymentIntentId } = req.body;
+
+    // CRITICAL: Prevent users from bypassing payment. Admin only.
+    if (req.user?.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Access denied. Payment updates are restricted to Admins and Webhooks.',
+      });
+      return;
+    }
 
     const validStatuses = ['pending', 'completed', 'failed', 'refunded'];
     if (!validStatuses.includes(paymentStatus)) {
@@ -465,7 +485,7 @@ export const updatePaymentStatus = async (req: Request, res: Response): Promise<
       data: order,
     });
   } catch (error) {
-    console.error('Update payment status error:', error);
+    logger.error('Update payment status error', { error, orderId: req.params.id });
     res.status(500).json({
       success: false,
       message: 'Error updating payment status',
